@@ -1,67 +1,112 @@
 # Verificar se o script está sendo executado como Administrador
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Error "Execute este script como Administrador."
-    exit
+function Check-Administrator {
+    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+    if (-not $isAdmin) {
+        Write-Error "Este script precisa ser executado como Administrador!"
+        exit 1
+    }
 }
 
 # Desativar o Windows Defender via Registro
-Write-Host "Desativando o Windows Defender no Registro..." -ForegroundColor Yellow
-$DefenderPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"
+function Disable-WindowsDefender {
+    Write-Host "Iniciando desativação do Windows Defender..." -ForegroundColor Yellow
 
-# Criar chave de Registro se não existir
-if (-not (Test-Path $DefenderPath)) {
-    New-Item -Path $DefenderPath -Force | Out-Null
+    $defenderRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"
+    
+    # Criar chave do registro se não existir
+    if (-not (Test-Path $defenderRegPath)) {
+        New-Item -Path $defenderRegPath -Force | Out-Null
+    }
+
+    # Desabilitar funcionalidades principais
+    Set-ItemProperty -Path $defenderRegPath -Name "DisableAntiSpyware" -Value 1 -Force
+    Set-ItemProperty -Path $defenderRegPath -Name "DisableAntiVirus" -Value 1 -Force
+
+    # Desabilitar Proteção em tempo real
+    $realTimePath = "$defenderRegPath\Real-Time Protection"
+    if (-not (Test-Path $realTimePath)) {
+        New-Item -Path $realTimePath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $realTimePath -Name "DisableRealtimeMonitoring" -Value 1 -Force
+    Set-ItemProperty -Path $realTimePath -Name "DisableBehaviorMonitoring" -Value 1 -Force
+    Set-ItemProperty -Path $realTimePath -Name "DisableOnAccessProtection" -Value 1 -Force
+    Set-ItemProperty -Path $realTimePath -Name "DisableScanOnRealtimeEnable" -Value 1 -Force
 }
-
-# Desativar funcionalidades principais
-Set-ItemProperty -Path $DefenderPath -Name "DisableAntiSpyware" -Value 1
-Set-ItemProperty -Path $DefenderPath -Name "DisableAntiVirus" -Value 1
-
-# Desativar proteção em tempo real
-$RealTimePath = "$DefenderPath\Real-Time Protection"
-if (-not (Test-Path $RealTimePath)) {
-    New-Item -Path $RealTimePath -Force | Out-Null
-}
-Set-ItemProperty -Path $RealTimePath -Name "DisableRealtimeMonitoring" -Value 1
-Set-ItemProperty -Path $RealTimePath -Name "DisableBehaviorMonitoring" -Value 1
-Set-ItemProperty -Path $RealTimePath -Name "DisableOnAccessProtection" -Value 1
-Set-ItemProperty -Path $RealTimePath -Name "DisableScanOnRealtimeEnable" -Value 1
 
 # Parar e desativar serviços do Windows Defender
-Write-Host "Parando serviços do Windows Defender..." -ForegroundColor Yellow
-Stop-Service -Name "WinDefend" -Force -ErrorAction SilentlyContinue
-Set-Service -Name "WinDefend" -StartupType Disabled
-
-# Remover o Windows Defender da inicialização
-Write-Host "Desativando o Windows Defender da Inicialização..." -ForegroundColor Yellow
-$DisableDefenderTasks = @(
-    "Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan",
-    "Microsoft\Windows\Windows Defender\Windows Defender Cache Maintenance",
-    "Microsoft\Windows\Windows Defender\Windows Defender Cleanup",
-    "Microsoft\Windows\Windows Defender\Windows Defender Verification"
-)
-
-foreach ($task in $DisableDefenderTasks) {
-    if (Get-ScheduledTask -TaskPath "\$($task.Substring(0, $task.LastIndexOf("\")))" -TaskName ($task.Split("\")[-1]) -ErrorAction SilentlyContinue) {
-        Disable-ScheduledTask -TaskPath "\$($task.Substring(0, $task.LastIndexOf("\")))" -TaskName ($task.Split("\")[-1])
+function Disable-DefenderServices {
+    Write-Host "Parando e desativando os serviços do Windows Defender..." -ForegroundColor Yellow
+    try {
+        Stop-Service -Name "WinDefend" -Force -ErrorAction Stop
+        Set-Service -Name "WinDefend" -StartupType Disabled -ErrorAction Stop
+    } catch {
+        Write-Warning "Erro ao parar o serviço WinDefend: $_"
     }
 }
 
-# Remover pastas relacionadas ao Windows Defender (opcional)
-Write-Host "Removendo arquivos residuais do Windows Defender..." -ForegroundColor Yellow
-$DefenderFolders = @(
-    "$Env:ProgramFiles\Windows Defender",
-    "$Env:ProgramData\Microsoft\Windows Defender",
-    "$Env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Defender",
-    "$Env:ProgramFiles\Windows Defender Advanced Threat Protection",
-    "$Env:ProgramData\Microsoft\Windows Defender Advanced Threat Protection"
-)
+# Desabilitar tarefas agendadas do Windows Defender
+function Disable-DefenderTasks {
+    Write-Host "Desabilitando tarefas agendadas do Windows Defender..." -ForegroundColor Yellow
+    $scheduledTasks = @(
+        "Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan",
+        "Microsoft\Windows\Windows Defender\Windows Defender Cache Maintenance",
+        "Microsoft\Windows\Windows Defender\Windows Defender Cleanup",
+        "Microsoft\Windows\Windows Defender\Windows Defender Verification"
+    )
 
-foreach ($folder in $DefenderFolders) {
-    if (Test-Path $folder) {
-        Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+    foreach ($task in $scheduledTasks) {
+        try {
+            if (Get-ScheduledTask -TaskPath "\$($task.Substring(0, $task.LastIndexOf("\")))" -TaskName ($task.Split("\")[-1]) -ErrorAction SilentlyContinue) {
+                Disable-ScheduledTask -TaskPath "\$($task.Substring(0, $task.LastIndexOf("\")))" -TaskName ($task.Split("\")[-1]) -ErrorAction Stop
+            }
+        } catch {
+            Write-Warning "Erro ao desabilitar a tarefa agendada $task: $_"
+        }
     }
 }
 
-Write-Host "Windows Defender foi desativado e arquivos removidos!" -ForegroundColor Green
-Write-Host "Reinicie o sistema para aplicar as mudanças." -ForegroundColor Cyan
+# Remover arquivos e pastas do Windows Defender (opcional)
+function Remove-DefenderFiles {
+    Write-Host "Removendo arquivos residuais do Windows Defender..." -ForegroundColor Yellow
+    $defenderPaths = @(
+        "$Env:ProgramFiles\Windows Defender",
+        "$Env:ProgramData\Microsoft\Windows Defender",
+        "$Env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Defender",
+        "$Env:ProgramFiles\Windows Defender Advanced Threat Protection",
+        "$Env:ProgramData\Microsoft\Windows Defender Advanced Threat Protection"
+    )
+
+    foreach ($path in $defenderPaths) {
+        if (Test-Path $path) {
+            try {
+                Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
+                Write-Host "Removido: $path" -ForegroundColor Green
+            } catch {
+                Write-Warning "Erro ao remover o diretório $path: $_"
+            }
+        }
+    }
+}
+
+# Função principal
+function Main {
+    # Verificar se o script está sendo executado como Administrador
+    Check-Administrator
+
+    # Desativar o Windows Defender
+    Disable-WindowsDefender
+
+    # Parar e desativar serviços
+    Disable-DefenderServices
+
+    # Desabilitar tarefas agendadas
+    Disable-DefenderTasks
+
+    # Remover arquivos do Windows Defender
+    Remove-DefenderFiles
+
+    Write-Host "Windows Defender foi desativado com sucesso. Reinicie o sistema para aplicar as alterações." -ForegroundColor Cyan
+}
+
+# Executar o script
+Main
