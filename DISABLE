@@ -1,24 +1,22 @@
 # Verificar se o script está sendo executado como Administrador
 function Check-Administrator {
-    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-    if (-not $isAdmin) {
+    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Error "Este script precisa ser executado como Administrador!"
         exit 1
     }
 }
 
-# Desativar o Windows Defender via Registro
-function Disable-WindowsDefender {
-    Write-Host "Iniciando desativação do Windows Defender..." -ForegroundColor Yellow
-
+# Desativar Windows Defender via Registro
+function Disable-WindowsDefenderRegistry {
+    Write-Host "Desativando o Windows Defender no Registro..." -ForegroundColor Yellow
     $defenderRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"
-    
-    # Criar chave do registro se não existir
+
+    # Criar chave de registro se não existir
     if (-not (Test-Path $defenderRegPath)) {
         New-Item -Path $defenderRegPath -Force | Out-Null
     }
 
-    # Desabilitar funcionalidades principais
+    # Definir as propriedades principais para desativar
     Set-ItemProperty -Path $defenderRegPath -Name "DisableAntiSpyware" -Value 1 -Force
     Set-ItemProperty -Path $defenderRegPath -Name "DisableAntiVirus" -Value 1 -Force
 
@@ -33,80 +31,68 @@ function Disable-WindowsDefender {
     Set-ItemProperty -Path $realTimePath -Name "DisableScanOnRealtimeEnable" -Value 1 -Force
 }
 
-# Parar e desativar serviços do Windows Defender
+# Desabilitar Serviços do Windows Defender
 function Disable-DefenderServices {
     Write-Host "Parando e desativando os serviços do Windows Defender..." -ForegroundColor Yellow
     try {
         Stop-Service -Name "WinDefend" -Force -ErrorAction Stop
         Set-Service -Name "WinDefend" -StartupType Disabled -ErrorAction Stop
     } catch {
-        Write-Warning "Erro ao parar o serviço WinDefend: $_"
+        Write-Warning "Erro ao desativar o serviço WinDefend: $_"
     }
 }
 
 # Desabilitar tarefas agendadas do Windows Defender
-function Disable-DefenderTasks {
-    Write-Host "Desabilitando tarefas agendadas do Windows Defender..." -ForegroundColor Yellow
-    $scheduledTasks = @(
+function Disable-DefenderScheduledTasks {
+    Write-Host "Desativando tarefas agendadas do Windows Defender..." -ForegroundColor Yellow
+    $tasks = @(
         "Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan",
         "Microsoft\Windows\Windows Defender\Windows Defender Cache Maintenance",
         "Microsoft\Windows\Windows Defender\Windows Defender Cleanup",
         "Microsoft\Windows\Windows Defender\Windows Defender Verification"
     )
 
-    foreach ($task in $scheduledTasks) {
+    foreach ($task in $tasks) {
         try {
             if (Get-ScheduledTask -TaskPath "\$($task.Substring(0, $task.LastIndexOf("\")))" -TaskName ($task.Split("\")[-1]) -ErrorAction SilentlyContinue) {
                 Disable-ScheduledTask -TaskPath "\$($task.Substring(0, $task.LastIndexOf("\")))" -TaskName ($task.Split("\")[-1]) -ErrorAction Stop
             }
         } catch {
-            Write-Warning "Erro ao desabilitar a tarefa agendada $task: $_"
+            Write-Warning "Erro ao desativar a tarefa $task: $_"
         }
     }
 }
 
-# Remover arquivos e pastas do Windows Defender (opcional)
-function Remove-DefenderFiles {
-    Write-Host "Removendo arquivos residuais do Windows Defender..." -ForegroundColor Yellow
-    $defenderPaths = @(
-        "$Env:ProgramFiles\Windows Defender",
-        "$Env:ProgramData\Microsoft\Windows Defender",
-        "$Env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Defender",
-        "$Env:ProgramFiles\Windows Defender Advanced Threat Protection",
-        "$Env:ProgramData\Microsoft\Windows Defender Advanced Threat Protection"
-    )
-
-    foreach ($path in $defenderPaths) {
-        if (Test-Path $path) {
-            try {
-                Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
-                Write-Host "Removido: $path" -ForegroundColor Green
-            } catch {
-                Write-Warning "Erro ao remover o diretório $path: $_"
-            }
+# Desinstalar Windows Defender via PowerShell (opcional para edições do Windows com suporte)
+function Uninstall-WindowsDefender {
+    Write-Host "Tentando desinstalar o Windows Defender (se suportado)..." -ForegroundColor Yellow
+    try {
+        # Verificar se o recurso está disponível
+        $feature = Get-WindowsOptionalFeature -Online -FeatureName Windows-Defender-Features
+        if ($feature.State -eq "Enabled") {
+            Disable-WindowsOptionalFeature -Online -FeatureName Windows-Defender-Features -NoRestart -ErrorAction Stop
+            Write-Host "Windows Defender desativado com sucesso!" -ForegroundColor Green
+        } else {
+            Write-Host "O recurso Windows Defender já está desativado." -ForegroundColor Cyan
         }
+    } catch {
+        Write-Warning "Erro ao desativar o Windows Defender como recurso do sistema: $_"
     }
 }
 
 # Função principal
 function Main {
-    # Verificar se o script está sendo executado como Administrador
+    # Verificar privilégios de Administrador
     Check-Administrator
 
-    # Desativar o Windows Defender
-    Disable-WindowsDefender
-
-    # Parar e desativar serviços
+    # Aplicar desativações
+    Disable-WindowsDefenderRegistry
     Disable-DefenderServices
+    Disable-DefenderScheduledTasks
+    Uninstall-WindowsDefender
 
-    # Desabilitar tarefas agendadas
-    Disable-DefenderTasks
-
-    # Remover arquivos do Windows Defender
-    Remove-DefenderFiles
-
-    Write-Host "Windows Defender foi desativado com sucesso. Reinicie o sistema para aplicar as alterações." -ForegroundColor Cyan
+    Write-Host "Processo concluído. Reinicie o sistema para aplicar as alterações." -ForegroundColor Cyan
 }
 
-# Executar o script
+# Executar script
 Main
