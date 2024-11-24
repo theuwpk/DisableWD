@@ -1,3 +1,7 @@
+# Configuração automática da política de execução para permitir scripts
+Write-Host "Configurando a política de execução para permitir scripts..."
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+
 # Função para desabilitar a proteção no Windows Defender
 Function Disable-WindowsDefender {
     Write-Host "Iniciando a desativação do Windows Defender..."
