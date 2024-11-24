@@ -1,0 +1,15 @@
+# Desabilitar o Windows Defender no Editor de Política de Grupo
+Write-Host "Desabilitando o Windows Defender no Editor de Política de Grupo..."
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 1 -Force
+
+# Desabilitar o Windows Defender no Registro
+Write-Host "Desabilitando o Windows Defender no Registro..."
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 1 -Force
+
+# Desativar a proteção em tempo real
+Write-Host "Desativando a proteção em tempo real..."
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Value 1 -Force
+
+# Reiniciar o computador para aplicar as configurações
+Write-Host "Configuração concluída. Reiniciando o computador..."
+Restart-Computer -Force
