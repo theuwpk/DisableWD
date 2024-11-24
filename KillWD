@@ -1,15 +1,51 @@
-# Desabilitar o Windows Defender no Editor de Política de Grupo
-Write-Host "Desabilitando o Windows Defender no Editor de Política de Grupo..."
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 1 -Force
+# Função para desabilitar a proteção no Windows Defender
+Function Disable-WindowsDefender {
+    Write-Host "Iniciando a desativação do Windows Defender..."
 
-# Desabilitar o Windows Defender no Registro
-Write-Host "Desabilitando o Windows Defender no Registro..."
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 1 -Force
+    # Desabilitar a proteção contra spyware e vírus no Editor de Política de Grupo
+    Write-Host "Desabilitando a proteção contra spyware e vírus no Editor de Política de Grupo..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 1 -Force
 
-# Desativar a proteção em tempo real
-Write-Host "Desativando a proteção em tempo real..."
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Value 1 -Force
+    # Desabilitar o Windows Defender no Registro
+    Write-Host "Desabilitando o Windows Defender no Registro..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 1 -Force
 
-# Reiniciar o computador para aplicar as configurações
-Write-Host "Configuração concluída. Reiniciando o computador..."
+    # Desabilitar a proteção em tempo real
+    Write-Host "Desativando a proteção em tempo real..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Value 1 -Force
+
+    # Desabilitar o serviço do Windows Defender
+    Write-Host "Desabilitando o serviço do Windows Defender..."
+    Stop-Service -Name "WinDefend" -Force
+    Set-Service -Name "WinDefend" -StartupType Disabled
+
+    # Impedir que o Windows Defender seja reiniciado por outras políticas ou configurações
+    Write-Host "Desabilitando configurações de segurança adicionais..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoSecurityTab" -Value 1 -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoControlPanel" -Value 1 -Force
+
+    # Desabilitar a proteção de rede
+    Write-Host "Desativando a proteção de rede..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Network Protection" -Name "DisableNetworkProtection" -Value 1 -Force
+
+    # Desabilitar a proteção contra ransomware
+    Write-Host "Desativando a proteção contra ransomware..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Ransomware Protection" -Name "EnableControlledFolderAccess" -Value 0 -Force
+
+    # Desabilitar o serviço do Windows Defender ATP (Advanced Threat Protection)
+    Write-Host "Desabilitando o Windows Defender ATP..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\AdvancedThreatProtection" -Name "DisableRealtimeProtection" -Value 1 -Force
+
+    # Desabilitar o SmartScreen
+    Write-Host "Desabilitando o SmartScreen..."
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "SmartScreenEnabled" -Value "Off" -Force
+
+    Write-Host "Windows Defender foi desativado com sucesso. Se o processo não funcionar totalmente, reiniciar o sistema pode ser necessário."
+}
+
+# Chama a função para desabilitar o Windows Defender
+Disable-WindowsDefender
+
+# Forçar a reinicialização do computador para garantir a desativação completa
+Write-Host "Reiniciando o computador para aplicar as configurações."
 Restart-Computer -Force
