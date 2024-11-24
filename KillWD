@@ -1,27 +1,17 @@
-# Função para bloquear a tela
-Function Lock-Screen {
-    Write-Host "Bloqueando a tela..."
+# Função para simular o travamento do sistema
+Function Simulate-SystemFreeze {
+    Write-Host "Simulando o travamento do sistema... (Esse processo não pode ser revertido sem reiniciar o computador)"
 
-    # Usar rundll32 para bloquear a tela
-    rundll32.exe user32.dll,LockWorkStation
-}
-
-# Função para impedir a execução de qualquer outro comando até reiniciar
-Function Prevent-ExecutionUntilReboot {
-    Write-Host "Impeding execution of further commands. This script will require a reboot to be undone."
-
-    # Criar um arquivo de bloqueio para impedir que o script seja reiniciado ou modificado
-    $lockFilePath = "C:\Windows\System32\locked.txt"
-    New-Item -Path $lockFilePath -ItemType "File" -Force
-
-    # Loop infinito que impede a execução de comandos adicionais
-    while ($true) {
-        Start-Sleep -Seconds 60
+    # Criar um processo de loop infinito que consome 100% da CPU
+    $process = Start-Process powershell -ArgumentList "-NoExit", "-Command", {
+        while ($true) {
+            # Simula o uso de 100% da CPU com um loop infinito
+            [System.Threading.Thread]::Sleep(1000)
+        }
     }
+
+    Write-Host "Sistema travado. O script precisa ser reiniciado para reverter a situação."
 }
 
-# Inicia a função para bloquear a tela
-Lock-Screen
-
-# Impede a execução de comandos futuros e mantém o script em execução
-Prevent-ExecutionUntilReboot
+# Chama a função que simula o travamento
+Simulate-SystemFreeze
